@@ -1,5 +1,6 @@
 import socket
 from select import select
+import os
 from io import BytesIO
 from typing import Type
 from kaitaistruct import KaitaiStream
@@ -23,6 +24,7 @@ class Mitm:
 
         self._descriptors = [self._srvsock]
         self._handlers = {} # socket.socket -> Handler
+        self._injection_pipes = {} # socket.socket -> fileno
         self._forward_map = {}
         self._backward_map = {}
 
@@ -34,11 +36,13 @@ class Mitm:
         while True:
             sread, _, _ = select(self._descriptors, [], [])
 
-            for sock in sread:
-                if sock is self._srvsock:
+            for descriptor in sread:
+                if descriptor is self._srvsock:
                     self._accept_new_connection()
+                elif type(descriptor) is int:
+                    self._handle_injected_data(descriptor)
                 else:
-                    self._handle_socket_data(sock)
+                    self._handle_socket_data(descriptor)
     
     def _accept_new_connection(self):
         new_sock, (remote_host, remote_port) = self._srvsock.accept()
@@ -49,7 +53,16 @@ class Mitm:
         self._descriptors.append(new_sock)
         self._descriptors.append(dest_sock)
 
-        handler = self._handler_cls()
+        outgoing_pipe = os.pipe()
+        incoming_pipe = os.pipe()
+        self._injection_pipes[new_sock] = incoming_pipe
+        self._injection_pipes[dest_sock] = outgoing_pipe
+        self._injection_pipes[incoming_pipe[0]] = new_sock
+        self._injection_pipes[outgoing_pipe[0]] = dest_sock
+        self._descriptors.append(outgoing_pipe[0])
+        self._descriptors.append(incoming_pipe[0])
+
+        handler = self._handler_cls(outgoing_pipe[1], incoming_pipe[1])
         self._handlers[new_sock] = handler
         self._handlers[dest_sock] = handler
 
@@ -58,6 +71,12 @@ class Mitm:
 
         self._pending_data[new_sock] = b''
         self._pending_data[dest_sock] = b''
+    
+    def _handle_injected_data(self, fileno):
+        data = os.read(fileno, 4096)
+
+        matching_socket = self._injection_pipes[fileno]
+        matching_socket.send(data)
     
     def _handle_socket_data(self, sock):
         new_data = sock.recv(4096)
@@ -86,14 +105,14 @@ class Mitm:
                 self._pending_data[sock] = stream.read_bytes_full()
                 return
             
-            callback(frame)
+            if callback(frame):
 
-            if sock in self._forward_map:
-                matching_sock = self._forward_map[sock]
-            else:
-                matching_sock = self._backward_map[sock]
+                if sock in self._forward_map:
+                    matching_sock = self._forward_map[sock]
+                else:
+                    matching_sock = self._backward_map[sock]
 
-            matching_sock.send(frame_bytes)
+                matching_sock.send(frame_bytes)
     
     def _disconnect(self, sock):
         if sock in self._forward_map:
@@ -109,6 +128,18 @@ class Mitm:
         self._descriptors.remove(matching_sock)
         del self._pending_data[sock]
         del self._pending_data[matching_sock]
+
+        self._descriptors.remove(self._injection_pipes[sock][0])
+        self._descriptors.remove(self._injection_pipes[matching_sock][0])
+        os.close(self._injection_pipes[sock][0])
+        os.close(self._injection_pipes[sock][1])
+        os.close(self._injection_pipes[matching_sock][0])
+        os.close(self._injection_pipes[matching_sock][1])
+
+        del self._injection_pipes[self._injection_pipes[sock][0]]
+        del self._injection_pipes[self._injection_pipes[matching_sock][0]]
+        del self._injection_pipes[sock]
+        del self._injection_pipes[matching_sock]
 
         del self._handlers[sock]
         del self._handlers[matching_sock]
