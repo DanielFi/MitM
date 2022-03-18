@@ -1,6 +1,7 @@
 import socket
 from select import select
 from io import BytesIO
+from typing import Type
 from kaitaistruct import KaitaiStream
 
 from .handler import Handler
@@ -8,12 +9,12 @@ from .handler import Handler
 
 class Mitm:
 
-    def __init__(self, listen_addr:str, listen_port:int, dest_addr:str, dest_port:int, handler: Handler):
+    def __init__(self, listen_addr:str, listen_port:int, dest_addr:str, dest_port:int, handler: Type[Handler]):
         self._listen_addr = listen_addr
         self._listen_port = listen_port
         self._dest_addr = dest_addr
         self._dest_port = dest_port
-        self._handler: Handler = handler
+        self._handler_cls: Type[Handler] = handler
 
         self._srvsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._srvsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 10)
@@ -21,6 +22,7 @@ class Mitm:
         self._srvsock.listen(5)
 
         self._descriptors = [self._srvsock]
+        self._handlers = {} # socket.socket -> Handler
         self._forward_map = {}
         self._backward_map = {}
 
@@ -47,6 +49,10 @@ class Mitm:
         self._descriptors.append(new_sock)
         self._descriptors.append(dest_sock)
 
+        handler = self._handler_cls()
+        self._handlers[new_sock] = handler
+        self._handlers[dest_sock] = handler
+
         self._forward_map[new_sock] = dest_sock
         self._backward_map[dest_sock] = new_sock
 
@@ -64,13 +70,14 @@ class Mitm:
         data = old_data + new_data
 
         outgoing = sock in self._forward_map
-        callback = self._handler.handle_outgoing_frame if outgoing else self._handler.handle_incoming_frame
+        handler = self._handlers[sock]
+        callback = handler.handle_outgoing_frame if outgoing else handler.handle_incoming_frame
 
         stream = KaitaiStream(BytesIO(data))
         pos = 0
         while True:
             try:
-                frame = self._handler.get_frame(stream)
+                frame = self._handlers[sock].get_frame(stream)
                 new_pos = stream.pos()
                 frame_bytes = data[pos:new_pos]
                 pos = new_pos
@@ -102,6 +109,9 @@ class Mitm:
         self._descriptors.remove(matching_sock)
         del self._pending_data[sock]
         del self._pending_data[matching_sock]
+
+        del self._handlers[sock]
+        del self._handlers[matching_sock]
 
         sock.close()
         matching_sock.close()
