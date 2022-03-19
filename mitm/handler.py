@@ -7,7 +7,7 @@ from .handler_result import HandlerResult, HANDLER_RESULT_FORWARD
 class Handler(ABC):
 
     def __init__(self):
-        self.init()
+        self.handle_connected()
 
     def handle_outgoing_frame(self, frame) -> HandlerResult:
         return HANDLER_RESULT_FORWARD
@@ -15,8 +15,10 @@ class Handler(ABC):
     def handle_incoming_frame(self, frame) -> HandlerResult:
         return HANDLER_RESULT_FORWARD
 
-    @abstractmethod
-    def init(self):
+    def handle_connected(self):
+        pass
+
+    def handle_disconnected(self):
         pass
 
     @abstractmethod

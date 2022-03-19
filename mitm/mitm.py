@@ -102,6 +102,7 @@ class Mitm:
                 connection.send_to_server(handler_result.server_data)
 
     def _disconnect(self, connection: Connection):
+        connection._handler.handle_disconnected()
         connection.close()
         self._connections.remove(connection)
         logging.info('Connection disconnected')
