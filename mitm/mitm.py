@@ -99,7 +99,7 @@ class Mitm:
             if handler_result.client_data:
                 connection.send_to_client(handler_result.client_data)
             if handler_result.server_data:
-                connection.send_to_server(handler_result.client_data)
+                connection.send_to_server(handler_result.server_data)
 
     def _disconnect(self, connection: Connection):
         connection.close()
