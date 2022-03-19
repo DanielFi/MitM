@@ -36,11 +36,11 @@ class Mitm:
         logging.info('MitM server started on {}:{}'.format(listen_addr, listen_port))
 
     def _get_descriptors(self) -> List[socket.socket]:
-        return sum([[connection.get_client_socket(), connection.get_server_socket()] for connection in self._connections], [])
+        return sum([[connection.get_client_socket().socket, connection.get_server_socket().socket] for connection in self._connections], [])
 
     def _get_connection_from_socket(self, socket: socket.socket) -> Connection:
         for connection in self._connections:
-            if connection.get_client_socket() == socket or connection.get_server_socket() == socket:
+            if connection.get_client_socket().socket == socket or connection.get_server_socket().socket == socket:
                 return connection
         #TODO create a named exception
         raise Exception("Nooooooooooo why did you do this to me?!")
@@ -71,7 +71,7 @@ class Mitm:
             self._disconnect(connection)
             return
 
-        outgoing = sock == connection.get_client_socket()
+        outgoing = sock == connection.get_client_socket().socket
         matching_sock = connection.get_server_socket() if outgoing else connection.get_client_socket()
         handler = connection.get_handler()
         callback = handler.handle_outgoing_frame if outgoing else handler.handle_incoming_frame
@@ -97,9 +97,9 @@ class Mitm:
                 matching_sock.socket.send(frame_bytes)
 
             if handler_result.client_data:
-                connection.send_to_client(frame_bytes)
+                connection.send_to_client(handler_result.client_data)
             if handler_result.server_data:
-                connection.send_to_server(frame_bytes)
+                connection.send_to_server(handler_result.client_data)
 
     def _disconnect(self, connection: Connection):
         connection.close()
