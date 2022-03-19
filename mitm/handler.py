@@ -10,10 +10,10 @@ class Handler(ABC):
         self.init()
 
     def handle_outgoing_frame(self, frame) -> HandlerResult:
-        return HandlerResult(b"", b"", False)
+        return HANDLER_RESULT_FORWARD
 
     def handle_incoming_frame(self, frame) -> HandlerResult:
-        return HandlerResult(b"", b"", False)
+        return HANDLER_RESULT_FORWARD
 
     @abstractmethod
     def init(self):
