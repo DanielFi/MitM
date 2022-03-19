@@ -2,8 +2,7 @@ import os
 
 from abc import ABC, abstractmethod
 
-from connection import Connection
-from mitm.handler_result import HandlerResult
+from .handler_result import HandlerResult, HANDLER_RESULT_FORWARD
 
 class Handler(ABC):
 

@@ -1,5 +1,4 @@
 import socket
-import os
 
 import logging
 
@@ -9,10 +8,10 @@ from typing import Type, List
 from kaitaistruct import KaitaiStream
 from dataclasses import dataclass
 
-from connection import Connection
-from mitm.buffered_socket import BufferedSocket
+from .connection import Connection
+from .buffered_socket import BufferedSocket
 
-from .handler import Handler
+from .handler import Handler, HandlerResult
 
 MAX_CONNECTIONS = 10
 MAX_ACTIVE_CONNECTIONS = 5

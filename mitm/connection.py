@@ -1,10 +1,7 @@
-import socket
-from mitm.buffered_socket import BufferedSocket
+from .buffered_socket import BufferedSocket
 
-from mitm.handler import Handler
-from mitm.handler_result import HandlerResult
+from .handler import Handler
 
-#from .handler import Handler
 
 class Connection:
     def __init__(self, client_socket: BufferedSocket, server_socket: BufferedSocket, handler: Handler):
